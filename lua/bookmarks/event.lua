@@ -7,19 +7,37 @@ local api = vim.api
 
 function M.setup()
     config = require("bookmarks.config").get_data()
+    if config == nil then
+        return
+    end
+
     if config.mappings_enabled then
         M.key_bind()
     end
+
     M.autocmd()
 end
 
+-- global keymaps.
 function M.key_bind()
-    vim.keymap.set("n", config.keymap.add, ":lua require'bookmarks'.add_bookmarks()<cr>", { silent = true })
-    vim.keymap.set("n", config.keymap.toggle, ":lua require'bookmarks'.toggle_bookmarks()<cr>", { silent = true })
-    vim.keymap.set("n", config.keymap.delete_on_virt, ":lua require'bookmarks.list'.delete_on_virt()<cr>", { silent = true })
-    vim.keymap.set("n", config.keymap.show_desc, ":lua require'bookmarks.list'.show_desc()<cr>", { silent = true })
+    -- add local bookmarks
+    vim.keymap.set("n", config.keymap.add, function() require("bookmarks").add_bookmarks(false) end,
+        { desc = "bookmarks add", silent = true })
+    -- add global bookmarks
+    vim.keymap.set("n", config.keymap.add_global, function() require("bookmarks").add_bookmarks(true) end,
+        { desc = "bookmarks add global", silent = true })
+    -- toggle bookmarks window
+    vim.keymap.set("n", config.keymap.toggle, function() require("bookmarks").toggle_bookmarks() end,
+        { desc = "bookmarks toggle", silent = true })
+    -- delete bookmarks
+    vim.keymap.set("n", config.keymap.delete_on_virt, function() require("bookmarks.list").delete_on_virt() end,
+        { desc = "bookmarks delete", silent = true })
+    -- show bookmarks description.
+    vim.keymap.set("n", config.keymap.show_desc, function() require("bookmarks.list").show_desc() end,
+        { desc = "bookmarks show desc", silent = true })
 end
 
+--
 function M.autocmd()
     api.nvim_create_autocmd({ "VimLeave" }, {
         callback = l.persistent

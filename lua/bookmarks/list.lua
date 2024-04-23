@@ -13,24 +13,28 @@ function M.setup()
     M.load_data()
 end
 
-function M.add_bookmark(line, buf, rows)
+function M.add_bookmark(line, buf, rows, is_global)
     --  Open the bookmark description input box.
-    local bufs_pairs = w.open_add_win(line)
+    local title = "Input description: [Tag:]Desc"
+    if is_global then
+        title = "Global Input description: [Tag:]Desc"
+    end
+    local bufs_pairs = w.open_add_win(title)
 
     -- Press the esc key to cancel add bookmark.
     vim.keymap.set("n", "<ESC>",
         function() w.close_add_win(bufs_pairs.pairs.buf, bufs_pairs.border_pairs.buf) end,
-        { silent = true, buffer = bufs_pairs.pairs.buf }
+        { desc = "bookmarks close add win", silent = true, buffer = bufs_pairs.pairs.buf }
     )
 
     -- Press the enter key to confirm add bookmark.
     vim.keymap.set("i", "<CR>",
-        function() M.handle_add(line, bufs_pairs.pairs.buf, bufs_pairs.border_pairs.buf, buf, rows) end,
-        { silent = true, noremap = true, buffer = bufs_pairs.pairs.buf }
+        function() M.handle_add(line, bufs_pairs.pairs.buf, bufs_pairs.border_pairs.buf, buf, rows, is_global) end,
+        { desc = "bookmarks confirm bookmarks", silent = true, noremap = true, buffer = bufs_pairs.pairs.buf }
     )
 end
 
-function M.handle_add(line, buf1, buf2, buf, rows)
+function M.handle_add(line, buf1, buf2, buf, rows, is_global)
     -- Get buf's filename.
     local filename = api.nvim_buf_get_name(buf)
     if filename == nil or filename == "" then
@@ -44,7 +48,7 @@ function M.handle_add(line, buf1, buf2, buf, rows)
         local content = api.nvim_buf_get_lines(buf, line - 1, line, true)[1]
         -- Save bookmark with description.
         M.add(filename, line, md5.sumhexa(content),
-            description, rows)
+            description, rows, is_global)
     end
 
     -- Close description input box.
@@ -55,7 +59,7 @@ end
 
 -- Save bookmark as lua code.
 -- rows is the file's number..
-function M.add(filename, line, line_md5, description, rows)
+function M.add(filename, line, line_md5, description, rows, is_global)
     local id = md5.sumhexa(string.format("%s:%s", filename, line))
     local now = os.time()
     local cuts = description:split_b(":")
@@ -82,6 +86,8 @@ function M.add(filename, line, line_md5, description, rows)
             fre = 1,
             rows = rows,         -- for fix
             line_md5 = line_md5, -- for fix
+            is_global = is_global,
+            is_new = true,
         }
 
         if data.bookmarks_groupby_filename[filename] == nil then
@@ -194,7 +200,7 @@ function M.flush()
         local rep1 = math.floor(data.bw * 0.3)
         local rep2 = math.floor(data.bw * 0.5)
 
-        local icon = (require 'nvim-web-devicons'.get_icon(item.filename)) or ""
+        local icon = (require 'nvim-web-devicons'.get_icon(item.filename)) or " "
 
         local tmp = item.fre
         if data.bookmarks_order == "time" then
@@ -202,9 +208,19 @@ function M.flush()
             rep2 = math.floor(data.bw * 0.4)
         end
 
+        if icon ~= " " then
+            rep2 = rep2 + 1
+        end
+
+
+        local description = item.description
+        if item.is_global ~= nil and item.is_global == true then -- global description
+            description = string.format("󰯾 %s", description)
+            rep1 = rep1 + 1
+        end
 
         lines[#lines + 1] = string.format("%s %s [%s]",
-            M.padding(string.format("%s|%s", M.padding(tostring(item.line), 3), item.description), rep1),
+            M.padding(string.format("%s|%s", M.padding(tostring(item.line), 3), description), rep1),
             M.padding(icon .. " " .. s[#s], rep2), tmp)
         data.bookmarks_order_ids[#data.bookmarks_order_ids + 1] = item.id
         ::continue::
@@ -224,13 +240,9 @@ function M.padding(str, len)
     local tmp = ""
     local total_len = 0
     for _, codepoint in utf8.codes(str) do
-        local char = codepoint
-        if string.len(char) == 1 or char == "…" then
-            total_len = total_len + 1
-        else
-            total_len = total_len + 2
-        end
+        total_len = total_len + utf8_char_width(codepoint)
     end
+
     if total_len > len then
         local show_len = len - 1
         local i = 0
@@ -239,7 +251,7 @@ function M.padding(str, len)
                 break
             end
             local char = codepoint
-            if string.len(char) == 1 then
+            if utf8_char_width(char) == 1 then
                 tmp = tmp .. char
                 i = i + 1
             else
@@ -253,6 +265,27 @@ function M.padding(str, len)
         return tmp .. string.rep("…", len - i)
     else
         return str .. string.rep(" ", len - total_len)
+    end
+end
+
+-- 判断一个UTF-8单个字符的宽度te()
+function utf8_char_width(char)
+    local byte = char:byte()
+    if byte >= 0 and byte <= 127 then
+        -- 单字节字符(ASCII)，占用1个字符宽度
+        return 1
+    elseif byte >= 194 and byte <= 223 then
+        -- 双字节字符，可能占用2个字符宽度
+        return 2
+    elseif byte >= 224 and byte <= 239 then
+        -- 三字节字符，可能占用2个字符宽度
+        return 2
+    elseif byte >= 240 and byte <= 244 then
+        -- 四字节字符，可能占用2个字符宽度
+        return 2
+    else
+        -- 其他情况，返回0长度
+        return 0
     end
 end
 
@@ -281,10 +314,10 @@ function M.jump(line)
         vim.cmd("execute  \"normal! zz\"")
     end
 
-    local is_default_buf = function (str)
-        local parts = {} 
-        for part in string.gmatch (str, "%S+") do
-            table.insert (parts, part)
+    local is_default_buf = function(str)
+        local parts = {}
+        for part in string.gmatch(str, "%S+") do
+            table.insert(parts, part)
         end
         local last = parts[#parts]
         if last == '[1]' then
@@ -330,19 +363,70 @@ end
 
 -- Write bookmarks into disk file for next load.
 function M.persistent()
+    local local_str = ""
+    local global_str = ""
+    local global_old_data = {}
+    for id, bookmark in pairs(data.bookmarks) do
+        local sub = M.fill_tpl(bookmark)
+        if bookmark["is_global"] ~= nil and bookmark["is_global"] == true then -- global bookmarks
+            if bookmark["is_new"] == true then
+                if global_str == "" then
+                    global_str = string.format("%s%s", global_str, sub)
+                else
+                    global_str = string.format("%s\n%s", global_str, sub)
+                end
+            end
+            global_old_data[id] = bookmark
+        else
+            if local_str == "" then
+                local_str = string.format("%s%s", local_str, sub)
+            else
+                local_str = string.format("%s\n%s", local_str, sub)
+            end
+        end
+    end
+
+    if data.data_filename == nil then -- lazy load,
+        return
+    end
+
+    -- 1.local bookmarks
+    local local_fd = assert(io.open(data.data_filename, "w"))
+    local_fd:write(local_str)
+    local_fd:close()
+
+    -- 2.global bookmarks
+    local global_file_name = config.storage_dir .. config.sep_path .. "bookmarks_global"
+    if vim.loop.fs_stat(global_file_name) then
+        data.bookmarks = {}
+        dofile(global_file_name)
+        -- combine
+        for id, bookmark in pairs(data.bookmarks) do
+            if global_old_data[id] ~= nil then
+                global_str = string.format("%s\n%s", global_str, M.fill_tpl(global_old_data[id]))
+            elseif data.deleted_ids[id] == nil then
+                global_str = string.format("%s\n%s", global_str, M.fill_tpl(bookmark)) -- new
+            end
+        end
+    end
+
+    local global_fd = assert(io.open(global_file_name, "w"))
+    global_fd:write(global_str)
+    global_fd:close()
+end
+
+function M.fill_tpl(bookmark)
     local tpl = [[
 require("bookmarks.list").load{
 	_
 }]]
-
-    local str = ""
-    for id, data in pairs(data.bookmarks) do
-        local sub = ""
-        for k, v in pairs(data) do
+    local sub = ""
+    for k, v in pairs(bookmark) do
+        if k ~= "is_new" then
             if sub ~= "" then
                 sub = string.format("%s\n%s", sub, string.rep(" ", 4))
             end
-            if type(v) == "number" then
+            if type(v) == "number" or type(v) == "boolean" then
                 sub = sub .. string.format("%s = %s,", k, v)
             else
                 -- issue #37
@@ -352,20 +436,9 @@ require("bookmarks.list").load{
                 sub = sub .. string.format("%s = \"%s\",", k, v)
             end
         end
-        if str == "" then
-            str = string.format("%s%s", str, string.gsub(tpl, "_", sub))
-        else
-            str = string.format("%s\n%s", str, string.gsub(tpl, "_", sub))
-        end
     end
 
-    if data.data_filename == nil then -- lazy load,
-        return
-    end
-
-    local fd = assert(io.open(data.data_filename, "w"))
-    fd:write(str)
-    fd:close()
+    return string.gsub(tpl, "_", sub)
 end
 
 -- Restore bookmarks from disk file.
@@ -392,9 +465,16 @@ function M.load_data()
         assert(os.execute("mkdir " .. config.storage_dir))
     end
 
+    -- local bookmarks
     local data_filename = string.format("%s%s%s", config.storage_dir, config.sep_path, cwd)
     if vim.loop.fs_stat(data_filename) then
         dofile(data_filename)
+    end
+
+    -- global bookmarks
+    local global_data_filename = config.storage_dir .. config.sep_path .. "bookmarks_global"
+    if vim.loop.fs_stat(global_data_filename) then
+        dofile(global_data_filename)
     end
 
     data.cwd = cwd
@@ -422,8 +502,11 @@ function M.show_desc()
 end
 
 -- Dofile
-function M.load(item)
+function M.load(item, is_persistent)
     data.bookmarks[item.id] = item
+    if is_persistent ~= nil and is_persistent == true then
+        return
+    end
 
     if data.bookmarks_groupby_filename[item.filename] == nil then
         data.bookmarks_groupby_filename[item.filename] = {}

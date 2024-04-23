@@ -108,12 +108,17 @@ require("bookmarks").setup({
     mappings_enabled = true, -- If the value is false, only valid for global keymaps: toggle、add、delete_on_virt、show_desc
     keymap = {
         toggle = "<tab><tab>", -- Toggle bookmarks(global keymap)
+        close = "q", -- close bookmarks (buf keymap)
         add = "\\z", -- Add bookmarks(global keymap)
+        add_global = "\\g" -- Add global bookmarks(global keymap), global bookmarks will appear in all projects. Identified with the symbol '󰯾'
         jump = "<CR>", -- Jump from bookmarks(buf keymap)
         delete = "dd", -- Delete bookmarks(buf keymap)
         order = "<space><space>", -- Order bookmarks by frequency or updated_time(buf keymap)
         delete_on_virt = "\\dd", -- Delete bookmark at virt text line(global keymap)
         show_desc = "\\sd", -- show bookmark desc(global keymap)
+        focus_tags = "<c-j>",      -- focus tags window
+        focus_bookmarks = "<c-k>", -- focus bookmarks window
+        toogle_focus = "<S-Tab>", -- toggle window focus (tags-window <-> bookmarks-window)
     },
     width = 0.8, -- Bookmarks window width:  (0, 1]
     height = 0.7, -- Bookmarks window height: (0, 1]
@@ -124,6 +129,7 @@ require("bookmarks").setup({
     virt_text = "", -- Show virt text at the end of bookmarked lines, if it is empty, use the description of bookmarks instead.
     sign_icon = "󰃃",                                           -- if it is not empty, show icon in signColumn.
     virt_pattern = { "*.go", "*.lua", "*.sh", "*.php", "*.rs" }, -- Show virt text only on matched pattern
+    virt_ignore_pattern = {}, -- Ignore showing virt text on matched pattern, this works after virt_pattern
     border_style = "single", -- border style: "single", "double", "rounded" 
     hl = {
         border = "TelescopeBorder", -- border highlight
@@ -145,7 +151,8 @@ require("bookmarks").setup({
 
 | Desc                              | Func                                     |
 | --------------------------------- | ---------------------------------------- |
-| Add bookmarks                     | require'bookmarks'.add_bookmarks()       |
+| Add local bookmarks               | require'bookmarks'.add_bookmarks(fasle)  |
+| Add global bookmarks              | require'bookmarks'.add_bookmarks(true)   |
 | Toggle bookmarks                  | require'bookmarks'.toggle_bookmarks()    |
 | Delete bookmark at virt text line | require'bookmarks.list'.delete_on_virt() |
 | Show bookmark desc                | require'bookmarks.list'.show_desc()      |
@@ -164,7 +171,8 @@ Tags is now supported to categorize bookmarks. You can add tags to your bookmark
 
 By default, ALL bookmarks are marked as ALL tags.
 
-You can use the shortcut keys `<c-j>` and `<c-k>` to jump through the Tags window and the bookmarks window.
+You can use the shortcut key `<S-Tab>` to switch the focus between the Tags and Bookmarks windows, or use the shortcut keys `<c-j>` and `<c-k>` to navigate through the Tags and Bookmarks windows.
+> Of course, you can change these default shortcut keys through the configuration settings if you so choose.
 
 ## Issue
 
