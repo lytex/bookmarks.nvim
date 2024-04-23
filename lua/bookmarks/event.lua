@@ -30,6 +30,9 @@ function M.autocmd()
             if config.fix_enable then
                 require("bookmarks.fix").fix_bookmarks()
             end
+            if config.treesitter_enable then
+                require("bookmarks.treesitter").fix_bookmarks()
+            end
             local buf = api.nvim_get_current_buf()
             m.set_marks(buf, l.get_buf_bookmark_lines(buf))
         end

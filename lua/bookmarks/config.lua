@@ -20,6 +20,7 @@ function M.setup(user_config)
         preview_ratio = 0.45,         -- bookmarks preview window ratio (0.1]
         tags_ratio = 0.1,
         fix_enable = false,
+        treesitter_enable = false,
         virt_text = "", -- Show virt text at the end of bookmarked lines, if it is empty, use the description of bookmarks instead.
         sign_icon = "󰃃", -- if it is not empty, show icon in signColumn.
         virt_pattern = { "*.go", "*.lua", "*.sh", "*.php", "*.rs" }, -- Show virt text only on matched pattern
